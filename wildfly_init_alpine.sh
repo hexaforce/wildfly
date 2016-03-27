@@ -41,7 +41,7 @@ fi
 
 start() {
 	export LAUNCH_JBOSS_IN_BACKGROUND=1
-	$WILDFLY_HOME/bin/standalone.sh -b 0.0.0.0 &
+	$WILDFLY_HOME/bin/standalone.sh -b=0.0.0.0 -bmanagement=0.0.0.0 &
 	sleep 3
 	jboss_modules pid_wildfly.pid
 	pid_wildfly=`cat ${WILDFLY_HOME}/bin/pid_wildfly.pid`
