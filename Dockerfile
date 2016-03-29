@@ -5,18 +5,18 @@ FROM alpine:latest
 
 ENV VERSION 10.0.0.CR2
 
-# Javaインストール
+# Java intall
 RUN apk --no-cache add openjdk8 openrc
 
-# WildFlyをインストール
+# WildFly intall
 RUN mkdir /opt
 ADD wildfly-$VERSION.tar.gz /opt
 
-# サービス追加
+# Service add
 COPY wildfly /etc/init.d/
 RUN rc-update add wildfly default
 
-# WildFly設定
+# WildFly config
 RUN /opt/wildfly-$VERSION/bin/add-user.sh admin Admin
 RUN echo 'JAVA_OPTS="$JAVA_OPTS -agentlib:jdwp=transport=dt_socket,address=8787,server=y,suspend=n"' >> /opt/wildfly-$VERSION/bin/standalone.conf
 
