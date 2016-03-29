@@ -1,19 +1,25 @@
-# WildFly 10.0.0.Final on OpenJDK 1.8
-# docker run -it hexaforce/wildfly
+# wildfly-10.0.0.CR2 on java-1.8-openjdk
+# docker run -it -p 8080:8080 -p 9990:9990 -p 9999:9999 -p 8787:8787 hexaforce/wildfly /bin/ash
 
 FROM alpine:latest
 
-ENV WILDFLY wildfly-10.0.0.Final
-ENV WILDFLY_HOME /opt/wildfly
+ENV VERSION 10.0.0.CR2
 
-RUN apk --no-cache add openjdk8-jre curl \
-    && wget http://download.jboss.org/wildfly/10.0.0.Final/$WILDFLY.zip \
-    && unzip $WILDFLY.zip \
-    && rm $WILDFLY.zip \
-    && mkdir /opt \
-    && mv $WILDFLY/ $WILDFLY_HOME \
-    && curl -L -o /etc/init.d/wildfly https://raw.githubusercontent.com/hexaforce/wildfly/master/wildfly_init_alpine.sh \
-    && chmod 755 /etc/init.d/wildfly \
-    && $WILDFLY_HOME/bin/add-user.sh -a wildfly wildfly
-EXPOSE 8080 9999 9990
-CMD ["service" , "wildfly" , "start"]
+# Javaインストール
+RUN apk --no-cache add openjdk8 openrc
+
+# WildFlyをインストール
+RUN mkdir /opt
+ADD wildfly-$VERSION.tar.gz /opt
+
+# サービス追加
+COPY wildfly /etc/init.d/
+RUN rc-update add wildfly default
+
+# WildFly設定
+RUN /opt/wildfly-$VERSION/bin/add-user.sh admin Admin
+RUN echo 'JAVA_OPTS="$JAVA_OPTS -agentlib:jdwp=transport=dt_socket,address=8787,server=y,suspend=n"' >> /opt/wildfly-$VERSION/bin/standalone.conf
+
+EXPOSE 8080 9990 9999 8787
+
+CMD ["service", "wildfly", "start"]
