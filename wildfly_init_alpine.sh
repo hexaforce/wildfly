@@ -6,120 +6,93 @@
 #
 ### BEGIN INIT INFO
 # Provides:             wildfly
-# Required-Start:       $java_home $wildfly_home
-# Required-Stop:        $java_home $wildfly_home
+# Required-Start:       none
+# Required-Stop:        none
 # Default-Start:        2 3 4 5
 # Default-Stop:         0 1 6
 # Description:          WildFly Application Server startup/shutdown script
 ### END INIT INFO
 
-#export WILDFLY_HOME=/root/wildfly-10.0.0.Final
+export JAVA_HOME=/usr/lib/jvm/java-1.8-openjdk
+export WILDFLY_HOME=/opt/wildfly-10.0.0.CR2
 
-if [ -n "$JAVA_HOME" ]; then
-	export JAVA_HOME
-else
-	export JAVA_HOME=/usr/lib/jvm/java-1.8-openjdk
+if [ ! -f "$JAVA_HOME/bin/jps" ]; then
+	echo "JavaSDK is not installed in \"$JAVA_HOME\""
+	exit 1
 fi
-
-if [ -z "$JAVA" ]; then
-	if [ -n "$JAVA_HOME" ]; then
-		JAVA="$JAVA_HOME/bin/java"
-	else
-		JAVA="java"
-	fi
-fi
-
-if [ -z "$WILDFLY_HOME" ]; then
-	WILDFLY_HOME="/opt/wildfly"
-fi
-export WILDFLY_HOME
 
 if [ ! -f "$WILDFLY_HOME/jboss-modules.jar" ]; then
 	echo "WildFly is not installed in \"$WILDFLY_HOME\""
 	exit 1
 fi
 
+export LAUNCH_JBOSS_IN_BACKGROUND=1
+
+ALLOW_SERVICE_PORT="-b 0.0.0.0"
+ALLOW_MANAGE_PORT="-bmanagement=0.0.0.0"
+CONFIG_STANDALONE_XML="-c standalone.xml"
+
+MANAGED_PID="$WILDFLY_HOME/bin/managed.pid"
+WILDFLY_PID="$WILDFLY_HOME/bin/wildfly.pid"
+
 start() {
-	export LAUNCH_JBOSS_IN_BACKGROUND=1
-	$WILDFLY_HOME/bin/standalone.sh -b=0.0.0.0 -bmanagement=0.0.0.0 &
-	sleep 3
-	jboss_modules pid_wildfly.pid
-	pid_wildfly=`cat ${WILDFLY_HOME}/bin/pid_wildfly.pid`
-	echo "WildFly was start up. (pid:$pid_wildfly)"
+	$WILDFLY_HOME/bin/standalone.sh $ALLOW_SERVICE_PORT $ALLOW_MANAGE_PORT $CONFIG_STANDALONE_XML &
+	sleep 6
+	check_pid $MANAGED_PID
+	echo "WildFly was start up. pid:"`cat ${MANAGED_PID}`
 }
 
 stop() {
-	pid_wildfly=`cat ${WILDFLY_HOME}/bin/pid_wildfly.pid`
-	kill -9 $pid_wildfly
-	rm -f $WILDFLY_HOME/bin/pid_wildfly.pid
-	echo "WildFly was stopped."
+	kill -9 `cat ${MANAGED_PID}`
+	echo "WildFly was stopped. pid:"`cat ${MANAGED_PID}`
+	rm -f $MANAGED_PID $WILDFLY_PID
+	sleep 1
 }
 
 status() {
 
-	jboss_modules jps_wildfly.pid
-	jps_wildfly=`cat ${WILDFLY_HOME}/bin/jps_wildfly.pid`
+	check_pid $WILDFLY_PID
+	pid=`cat ${WILDFLY_PID}`
 
-	if [ -e $WILDFLY_HOME/bin/pid_wildfly.pid ]; then
-		pid_wildfly=`cat ${WILDFLY_HOME}/bin/pid_wildfly.pid`
-	else
-		if [ -n "$jps_wildfly" ]; then
-			echo "WildFly is running. It has been started by other processes. (pid:$jps_wildfly)"
+	if [ -e $MANAGED_PID ]; then
+		m_pid=`cat ${MANAGED_PID}`
+		if [ "$pid" = "$m_pid" ]; then
+			echo "WildFly is running."
+			return 0
+		else
+			echo "Ambiguous status. Please restarted after a pid file is deleted.　> $MANAGED_PID"
 			return 1
+		fi
+	else
+		if [ -n "$pid" ]; then
+			echo "WildFly is running. It has been started by other processes. pid:"$pid
+			return 2
 		else
 			echo "WildFly is not running."
-			return 2
+			return 3
 		fi
-	fi
-
-	if [ "$jps_wildfly" = "$pid_wildfly" ]; then
-		echo "WildFly is already running."
-		return 0
-	else
-		echo "Ambiguous status. Please restarted after a [pid_wildfly.pid] file is deleted.　> $WILDFLY_HOME/bin/pid_wildfly.pid"
-		return 3
 	fi
 
 }
 
-jboss_modules() {
-	$JAVA_HOME/bin/jps | grep jboss-modules.jar | sed -e 's/ jboss-modules.jar//g' > $WILDFLY_HOME/bin/$1
-	chmod 777 $WILDFLY_HOME/bin/$1
+check_pid() {
+	$JAVA_HOME/bin/jps | grep jboss-modules.jar | sed -e 's/ jboss-modules.jar//g' > $1
+	chmod 755 $1
 }
 
 case "$1" in
 	start)
-		status
-		ret=$?
-		if [ $ret -eq 2 ]; then
-			start
-		fi
-		exit 0
+		status ; [ $? -eq 3 ] && start
 	;;
 	stop)
-		status
-		ret=$?
-		if [ $ret -eq 0 ]; then
-			stop
-		fi
-		exit 0
+		status ; [ $? -eq 0 ] && stop
 	;;
 	restart)
-		status
-		ret=$?
-		if [ $ret -eq 0 ]; then
-			stop
-		fi
-		status
-		ret=$?
-		if [ $ret -eq 2 ]; then
-			start
-		fi
-		exit 0
+		status ; [ $? -eq 0 ] && stop
+		status ; [ $? -eq 3 ] && start
 	;;
 	status)
 		status
-		exit 0
 	;;
 	*)
 		echo "Usage: $0 {start|stop|restart|status}"
