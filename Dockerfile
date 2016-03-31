@@ -14,6 +14,7 @@ ADD wildfly-$VERSION.tar.gz /opt
 
 # Service add
 COPY wildfly /etc/init.d/
+RUN chmod 755 /etc/init.d/wildfly
 RUN rc-update add wildfly default
 
 # WildFly config
